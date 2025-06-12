@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Chat with Claude</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        .chat-container {
+            height: calc(100vh - 200px);
+            max-height: 600px;
+        }
+        .message {
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .typing-indicator {
+            display: none;
+        }
+        /* Toast notification styles */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            display: none;
+        }
+        .toast.error {
+            background: #f44336;
+        }
+        /* Loading spinner */
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        /* Form error styles */
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        .has-error input,
+        .has-error select,
+        .has-error textarea {
+            border-color: #f44336;
+        }
+        .error-message {
+            color: #f44336;
+            font-size: 0.875rem;
+            margin-top: 0.25rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Toast notification -->
+    <div id="toast" class="toast"></div>
+
+    <!-- Initial Form Modal -->
+    <div id="initialFormModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <h2 class="text-2xl font-bold mb-4">Tell us about your company</h2>
+            <form id="companyForm">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Company Name *</label>
+                        <input type="text" name="company_name" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Website URL *</label>
+                        <input type="url" name="website_url" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Industry *</label>
+                        <select name="industry" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="">Select an industry</option>
+                            <option value="technology">Technology</option>
+                            <option value="finance">Finance</option>
+                            <option value="healthcare">Healthcare</option>
+                            <option value="education">Education</option>
+                            <option value="retail">Retail</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+                        <input type="text" name="contact_first_name" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+                        <input type="text" name="contact_last_name" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                        <input type="email" name="contact_email" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Number of Employees *</label>
+                        <input type="number" name="number_employees" min="1" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Number of Clients *</label>
+                        <input type="number" name="number_clients" min="0" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                    </div>
+                    <div class="form-group">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Business Type *</label>
+                        <select name="business_type" required
+                            class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            <option value="product">Product</option>
+                            <option value="service">Service</option>
+                            <option value="both">Both</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group mt-4">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+                    <textarea name="description" rows="4" required
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md"></textarea>
+                </div>
+                <div class="mt-6 flex justify-end space-x-3">
+                    <button type="submit"
+                        class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        Submit
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="container mx-auto px-4 py-8">
+        <h1 class="text-3xl font-bold text-center mb-8">File Chat with Claude</h1>
+        
+        <!-- Session ID (hidden) -->
+        <input type="hidden" id="sessionId" value="">
+        
+        <!-- File Upload Section -->
+        <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h2 class="text-xl font-semibold mb-4">Upload a File</h2>
+            <div class="flex items-center space-x-4">
+                <div class="flex-1">
+                    <input type="file" id="fileInput" class="hidden" accept=".pdf,.txt,.docx,.xlsx,.pptx">
+                    <label for="fileInput" class="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg inline-flex items-center">
+                        <i class="fas fa-upload mr-2"></i>
+                        <span id="fileName">Choose a file (PDF, TXT, DOCX, XLSX, PPTX)</span>
+                    </label>
+                    <span id="fileSize" class="text-sm text-gray-500 ml-2"></span>
+                </div>
+                <button id="uploadBtn" class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg disabled:opacity-50" disabled>
+                    Upload
+                </button>
+            </div>
+            <div id="uploadProgress" class="mt-2 hidden">
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+                <p id="uploadStatus" class="text-sm text-gray-600 mt-1">Uploading...</p>
+            </div>
+        </div>
+
+        <!-- Uploaded Files List -->
+        <div id="filesList" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">Your Files</h2>
+            <div id="fileListContent" class="space-y-2">
+                <!-- Files will be listed here -->
+            </div>
+        </div>
+
+        <!-- Questions Table -->
+        <div id="questionsSection" class="bg-white rounded-lg shadow-md p-6 mb-6 hidden">
+            <h2 class="text-xl font-semibold mb-4">Questions</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full">
+                    <thead>
+                        <tr class="bg-gray-50">
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phase</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Question</th>
+                        </tr>
+                    </thead>
+                    <tbody id="questions-table" class="bg-white divide-y divide-gray-200">
+                        <!-- Questions will be populated here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Chat Interface -->
+        <div id="chatContainer" class="bg-white rounded-lg shadow-md p-6">
+            <div class="chat-container overflow-y-auto mb-4 p-4 border rounded-lg bg-gray-50">
+                <div id="chatMessages" class="space-y-4">
+                    <div class="text-center text-gray-500">Upload a file to start chatting</div>
+                </div>
+                <div id="typingIndicator" class="typing-indicator flex items-center space-x-2 mt-2">
+                    <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                    <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.4s"></div>
+                </div>
+            </div>
+            
+            <div class="flex space-x-2">
+                <input type="text" id="userInput" 
+                       class="flex-1 border rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                       placeholder="Type your message..." disabled>
+                <button id="sendBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg disabled:opacity-50" disabled>
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

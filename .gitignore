@@ -1,0 +1,7 @@
+.env
+__pycache__
+data
+mohammed_llm2.sql
+.DS_Store
+.env
+.windsurf
